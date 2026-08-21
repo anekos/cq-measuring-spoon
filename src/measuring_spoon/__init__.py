@@ -18,13 +18,18 @@ def main(ctx: click.Context) -> None:
 
 @main.command(name="build")
 @define_options(Param)
-def command_build(output: Path | None, param: Param, show: bool) -> None:
+def command_build(
+    output: Path | None, param: Param, show: bool, screenshot: bool
+) -> None:
     print("Build with:", param)
 
     result = build(param)
 
     dist = Path("dist")
     dist.mkdir(exist_ok=True)
-    result.export(str(output if output else dist / param.filename))
+    export_path = output if output else dist / param.filename
+    result.export(str(export_path))
+    if screenshot:
+        vis.show(result, interact=False, screenshot=f"{export_path}.png")
     if show:
         vis.show(result)
