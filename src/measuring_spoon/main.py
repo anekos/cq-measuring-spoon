@@ -30,6 +30,18 @@ class Param(BaseModel):
         return f"v{ver()}-{self.capacity_ml:g}ml.stl"
 
 
+def _fit_fontsize(label: str, max_width: float, max_length: float) -> float:
+    # The `fontsize` argument to text() is a nominal em-size, not the actual rendered
+    # glyph bounding box, so fitting a label snugly needs measuring one to get the
+    # actual size-to-bbox ratio and scaling from that.
+    probe_size = 10.0
+    probe = cq.Workplane("XY").text(label, probe_size, 1.0, combine=False).val()
+    assert isinstance(probe, cq.Shape)
+    bbox = probe.BoundingBox()
+    scale = min(max_width / bbox.ylen, max_length / bbox.xlen)
+    return probe_size * scale
+
+
 def _bowl_radius(param: Param) -> float:
     # The cavity left by shelling a hemisphere (top face open) inward by wall_thickness
     # is itself an exact concentric hemisphere of radius (radius - wall_thickness) -
@@ -80,6 +92,18 @@ def build(param: Param) -> cq.Workplane:
             centered=(False, True, True),
         )
         .translate((handle_near_x, 0, -param.handle_thickness / 2))
+    )
+
+    # Engrave the capacity on the handle's z=-handle_thickness face: after the final
+    # 180° flip that face becomes the top-facing one, so the label reads right-side up
+    # and isn't printed face-down against the bed.
+    label = f"{param.capacity_ml:g}ml"
+    engrave_depth = min(0.6, param.handle_thickness * 0.3)
+    fontsize = _fit_fontsize(label, param.handle_width * 0.9, param.handle_length * 0.6)
+    handle = (
+        handle.faces("<Z")
+        .workplane(centerOption="CenterOfBoundBox")
+        .text(label, fontsize, -engrave_depth)
     )
 
     result = bowl.union(handle)
